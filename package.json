@@ -1,0 +1,26 @@
+{
+  "name": "my-invoice-app",
+  "private": true,
+  "version": "1.2.0",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "overrides": {
+    "path-to-regexp": "0.1.13"
+  },
+  "scripts": {
+    "predev": "npm run db:generate",
+    "dev": "concurrently --kill-others-on-fail \"npm run dev --workspace backend\" \"npm run dev --workspace frontend\"",
+    "build": "npm run build --workspace backend && npm run build --workspace frontend",
+    "lint": "npm run lint --workspace backend && npm run lint --workspace frontend",
+    "test": "npm run test --workspace backend && npm run test:e2e",
+    "test:e2e": "playwright test --config playwright.config.ts",
+    "db:migrate": "npm run prisma:deploy --workspace backend",
+    "db:generate": "npm run prisma:generate --workspace backend"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.2",
+    "concurrently": "^9.1.2"
+  }
+}
