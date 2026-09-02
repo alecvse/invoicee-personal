@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum InvoiceStatus {
+  draft
+  issued
+  sent
+  paid
+}
+
+enum AccountType {
+  iban
+  local
+}
+
+enum PdfTemplate {
+  classic
+  mondrian
+}
+
+model Contact {
+  id             String                 @id @default(cuid())
+  name           String
+  street         String
+  city           String
+  zip            String
+  country        String
+  ico            String?
+  dic            String?
+  email          String?
+  phone          String?
+  invoices       Invoice[]
+  invoiceTemplate ContactInvoiceTemplate?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+}
+
+model BankAccount {
+  id            String      @id @default(cuid())
+  label         String
+  currency      String
+  accountType   AccountType
+  iban          String?
+  bic           String?
+  routingNumber String?
+  accountNumber String?
+  bankCode      String?
+  isDefault     Boolean     @default(false)
+  invoices      Invoice[]
+  contactTemplates ContactInvoiceTemplate[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  invoiceNumber  String?       @unique
+  variableSymbol String?
+  status         InvoiceStatus @default(issued)
+  issueDate      DateTime
+  dueDate        DateTime
+  currency       String
+  note           String?
+  fxRateCzk      Decimal?
+  fxRateDate     DateTime?
+  totalCzkAtIssue Decimal?
+  contactId      String
+  bankAccountId  String
+  total          Decimal
+  paidAt         DateTime?
+  contact        Contact       @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  bankAccount    BankAccount   @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  items          InvoiceItem[]
+  emailSentAt    DateTime?
+  emailSentTo    String?
+  emailMessageId String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([issueDate])
+  @@index([status])
+  @@index([contactId])
+}
+
+model ContactInvoiceTemplate {
+  id            String                    @id @default(cuid())
+  contactId     String                    @unique
+  bankAccountId String?
+  currency      String?
+  note          String?
+  contact       Contact                   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  bankAccount   BankAccount?              @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  items         ContactInvoiceTemplateItem[]
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+}
+
+model ContactInvoiceTemplateItem {
+  id         String                 @id @default(cuid())
+  templateId String
+  title      String
+  quantity   Decimal
+  unit       String
+  unitPrice  Decimal
+  sortOrder  Int                    @default(0)
+  template   ContactInvoiceTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId, sortOrder])
+}
+
+model InvoiceSequence {
+  year      Int      @id
+  nextSeq   Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model InvoiceItem {
+  id        String   @id @default(cuid())
+  invoiceId String
+  title     String
+  quantity  Decimal
+  unit      String
+  unitPrice Decimal
+  lineTotal Decimal
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model Settings {
+  id                  String   @id @default("singleton")
+  supplierName        String
+  supplierStreet      String
+  supplierCity        String
+  supplierZip         String
+  supplierCountry     String
+  supplierICO         String?
+  supplierEmail       String?
+  supplierPhone       String?
+  defaultDueDays      Int      @default(14)
+  invoiceNumberFormat String   @default("YYYY-NN")
+  pdfTemplate         PdfTemplate @default(classic)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
