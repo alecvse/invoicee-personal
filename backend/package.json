@@ -1,0 +1,39 @@
+{
+  "name": "backend",
+  "private": true,
+  "version": "1.2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "lint": "tsc --noEmit",
+    "test": "rm -f data/test.db && DATABASE_URL=file:../data/test.db vitest run --config vitest.config.ts",
+    "fx:backfill": "tsx src/scripts/backfillUsdFxSnapshot.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "cors": "^2.8.5",
+    "dayjs": "^1.11.21",
+    "express": "^4.22.2",
+    "pdfkit": "^0.16.0",
+    "qrcode": "^1.5.4",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.19.19",
+    "@types/pdfkit": "^0.17.6",
+    "@types/qrcode": "^2.1.0",
+    "@types/supertest": "^6.0.3",
+    "prisma": "^6.19.3",
+    "supertest": "^7.1.1",
+    "tsx": "^4.22.4",
+    "typescript": "^5.8.2",
+    "vitest": "^4.1.8"
+  }
+}
