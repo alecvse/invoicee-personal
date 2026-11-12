@@ -21,7 +21,7 @@ enum AccountType {
 
 enum PdfTemplate {
   classic
-  mondrian
+  classic_rows
 }
 
 model Contact {
@@ -67,6 +67,7 @@ model Invoice {
   dueDate        DateTime
   currency       String
   note           String?
+  pdfTemplate    PdfTemplate?
   fxRateCzk      Decimal?
   fxRateDate     DateTime?
   totalCzkAtIssue Decimal?

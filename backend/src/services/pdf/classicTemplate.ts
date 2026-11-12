@@ -1,4 +1,5 @@
 import PDFDocument from "pdfkit";
+import { drawClassicRows, rowsPageBottom } from "./classicRows.js";
 import type { Settings } from "@prisma/client";
 import { toNumber } from "../../utils/decimal.js";
 import {
@@ -27,7 +28,9 @@ function drawHeader(params: {
   doc: PDFKit.PDFDocument;
   t: Record<string, string>;
   invoice: InvoiceForPdf;
+  spacing?: number;
 }): number {
+  const spacing = params.spacing ?? sectionSpacing;
   const { doc, t, invoice } = params;
   const titleY = 44;
   const invoiceNumber = invoice.invoiceNumber ?? "Koncept";
@@ -50,7 +53,7 @@ function drawHeader(params: {
     .text(variableSymbol, classicPage.left + variableLabelWidth, variableY, { lineBreak: false });
 
   const variableLineHeight = doc.currentLineHeight();
-  const lineY = Math.round(variableY + variableLineHeight + sectionSpacing);
+  const lineY = Math.round(variableY + variableLineHeight + spacing);
   drawRule(doc, lineY);
   return lineY;
 }
@@ -62,7 +65,9 @@ function drawAddressColumns(params: {
   invoice: InvoiceForPdf;
   y: number;
   lang: Lang;
+  spacing?: number;
 }): number {
+  const spacing = params.spacing ?? sectionSpacing;
   const { doc, t, settings, invoice, y, lang } = params;
   const colGap = 24;
   const colWidth = (classicPage.right - classicPage.left - colGap) / 2;
@@ -72,7 +77,7 @@ function drawAddressColumns(params: {
   const hasCustomerIco = Boolean(invoice.contact.ico && invoice.contact.ico.trim().length > 0);
   const hasCustomerDic = Boolean(invoice.contact.dic && invoice.contact.dic.trim().length > 0);
 
-  const headingY = y + sectionSpacing;
+  const headingY = y + spacing;
   const nameY = headingY + 24;
   const addressY = nameY + 22;
   const metaY = addressY + 66;
@@ -123,7 +128,7 @@ function drawAddressColumns(params: {
 
   doc.font("AppRegular").fontSize(11);
   const metaLineHeight = doc.currentLineHeight();
-  const sectionEndY = Math.round(metaY + 20 + metaLineHeight + sectionSpacing);
+  const sectionEndY = Math.round(metaY + 20 + metaLineHeight + spacing);
   drawRule(doc, sectionEndY);
   return sectionEndY;
 }
@@ -134,7 +139,9 @@ function drawMetaGrid(params: {
   invoice: InvoiceForPdf;
   y: number;
   lang: Lang;
+  spacing?: number;
 }): number {
+  const spacing = params.spacing ?? sectionSpacing;
   const { doc, t, invoice, y, lang } = params;
   const colGap = 24;
   const colWidth = (classicPage.right - classicPage.left - colGap) / 2;
@@ -142,7 +149,7 @@ function drawMetaGrid(params: {
   const rightX = leftX + colWidth + colGap;
   const showUsdWireDetails = lang === "en" && invoice.currency.trim().toUpperCase() === "USD";
 
-  const firstRowTitleY = y + sectionSpacing;
+  const firstRowTitleY = y + spacing;
   const firstRowValueY = firstRowTitleY + 26;
   const secondRowTitleY = firstRowValueY + 34;
   const secondRowValueY = secondRowTitleY + 24;
@@ -181,7 +188,7 @@ function drawMetaGrid(params: {
 
   doc.font("AppRegular").fontSize(11);
   const valueLineHeight = doc.currentLineHeight();
-  const sectionEndY = Math.round(lastValueY + valueLineHeight + sectionSpacing);
+  const sectionEndY = Math.round(lastValueY + valueLineHeight + spacing);
   drawRule(doc, sectionEndY);
   return sectionEndY;
 }
@@ -194,24 +201,42 @@ function drawItemsAndTotal(params: {
   startY: number;
   qrCodeBuffer?: Buffer | null;
   note?: string | null;
+  rows?: boolean;
 }): void {
   const { doc, t, invoice, lang, startY, qrCodeBuffer, note } = params;
-  const sectionPadding = sectionSpacing;
+  const sectionPadding = params.rows ? 20 : sectionSpacing;
 
   doc.font("AppExtraBold").fontSize(13).fillColor(classicColors.slate960).text(t.servicesIntro, classicPage.left, startY);
 
-  const bodyY = startY + 30;
-  const description = servicesDescription(invoice.items);
-  doc.font("AppRegular").fontSize(11).fillColor(classicColors.slate960).text(description, classicPage.left, bodyY, {
-    width: classicPage.right - classicPage.left,
-    lineGap: -1
-  });
-
-  const bodyHeight = doc.heightOfString(description, { width: classicPage.right - classicPage.left });
-  const itemsEndY = Math.round(bodyY + bodyHeight + sectionPadding);
+  const newPage = () => {
+    drawFooter(doc, lang);
+    doc.addPage();
+    doc.rect(0, 0, doc.page.width, doc.page.height).fill(classicColors.background);
+    drawHeader({ doc, t, invoice, spacing: 20 });
+  };
+  let itemsEndY: number;
+  if (params.rows) {
+    itemsEndY = drawClassicRows({ doc, invoice, lang, startY: startY + 30, newPage });
+  } else {
+    const bodyY = startY + 30;
+    const description = servicesDescription(invoice.items);
+    doc.font("AppRegular").fontSize(11).fillColor(classicColors.slate960).text(description, classicPage.left, bodyY, {
+      width: classicPage.right - classicPage.left,
+      lineGap: -1
+    });
+    const bodyHeight = doc.heightOfString(description, { width: classicPage.right - classicPage.left });
+    itemsEndY = Math.round(bodyY + bodyHeight + sectionPadding);
+  }
   drawRule(doc, itemsEndY);
 
-  const totalY = itemsEndY + sectionPadding;
+  let totalY = itemsEndY + sectionPadding;
+  if (params.rows) {
+    const summaryHeight = qrCodeBuffer ? 134 : 74;
+    if (totalY + summaryHeight > rowsPageBottom) {
+      newPage();
+      totalY = 140;
+    }
+  }
   doc.font("AppRegular").fontSize(11).fillColor(classicColors.slate960).text(t.totalWithoutVat, classicPage.left, totalY, {
     width: 240,
     lineGap: 0
@@ -253,7 +278,7 @@ function drawItemsAndTotal(params: {
     noteY = Math.max(noteY, qrY + qrSize + 16);
   }
 
-  if (note) {
+  if (note && !params.rows) {
     doc
       .font("AppRegular")
       .fontSize(11)
@@ -264,8 +289,16 @@ function drawItemsAndTotal(params: {
   }
 }
 
-function drawFooter(_doc: PDFKit.PDFDocument, _lang: Lang): void {
-  // The public distribution must not contain supplier-specific legal text.
+function drawFooter(doc: PDFKit.PDFDocument, lang: Lang): void {
+  if (lang === "en") {
+    return;
+  }
+
+  const footerText = "Fyzická osoba zapsaná v živnostenském rejstříku - Zápsáno u MÚ Vsetín - č.j. 2189/2001";
+  doc.font("AppRegular").fontSize(9).fillColor(classicColors.slate960).fillOpacity(0.72).text(footerText, classicPage.left, 812, {
+    width: classicPage.right - classicPage.left
+  });
+  doc.fillOpacity(1);
 }
 
 export async function renderClassicInvoicePdf(params: {
@@ -282,9 +315,10 @@ export async function renderClassicInvoicePdf(params: {
 
   doc.rect(0, 0, doc.page.width, doc.page.height).fill(classicColors.background);
 
-  const sectionStartY = drawHeader({ doc, t, invoice });
-  const metaStartY = drawAddressColumns({ doc, t, settings, invoice, y: sectionStartY, lang });
-  const metaEndY = drawMetaGrid({ doc, t, invoice, y: metaStartY, lang });
+  const spacing = settings.pdfTemplate === "classic_rows" ? 16 : sectionSpacing;
+  const sectionStartY = drawHeader({ doc, t, invoice, spacing });
+  const metaStartY = drawAddressColumns({ doc, t, settings, invoice, y: sectionStartY, lang, spacing });
+  const metaEndY = drawMetaGrid({ doc, t, invoice, y: metaStartY, lang, spacing });
 
   let qrCodeBuffer: Buffer | null = null;
   if (lang === "cs") {
@@ -299,9 +333,10 @@ export async function renderClassicInvoicePdf(params: {
     t,
     invoice,
     lang,
-    startY: metaEndY + sectionSpacing,
+    startY: metaEndY + spacing,
     qrCodeBuffer,
-    note: invoice.note
+    note: invoice.note,
+    rows: settings.pdfTemplate === "classic_rows"
   });
   drawFooter(doc, lang);
 

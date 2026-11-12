@@ -1,6 +1,6 @@
 export type InvoiceStatus = "draft" | "issued" | "sent" | "paid";
 export type InvoiceStatusDisplay = InvoiceStatus | "overdue";
-export type PdfTemplate = "classic" | "mondrian";
+export type PdfTemplate = "classic" | "classic_rows";
 
 export interface ApiErrorEnvelope {
   message: string;
@@ -64,6 +64,7 @@ export interface Invoice {
   id: string;
   invoiceNumber: string | null;
   variableSymbol: string | null;
+  pdfTemplate: PdfTemplate | null;
   status: InvoiceStatus;
   issueDate: string;
   dueDate: string;

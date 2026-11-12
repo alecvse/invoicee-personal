@@ -38,6 +38,7 @@ const schemaStatements = [
     "dueDate" DATETIME NOT NULL,
     "currency" TEXT NOT NULL,
     "note" TEXT,
+    "pdfTemplate" TEXT,
     "fxRateCzk" DECIMAL,
     "fxRateDate" DATETIME,
     "totalCzkAtIssue" DECIMAL,
@@ -128,6 +129,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
   }
 
   for (const column of [
+    `ALTER TABLE "Invoice" ADD COLUMN "pdfTemplate" TEXT`,
     `ALTER TABLE "Invoice" ADD COLUMN "emailSentAt" DATETIME`,
     `ALTER TABLE "Invoice" ADD COLUMN "emailSentTo" TEXT`,
     `ALTER TABLE "Invoice" ADD COLUMN "emailMessageId" TEXT`
@@ -141,6 +143,9 @@ export async function ensureDatabaseSchema(): Promise<void> {
       }
     }
   }
+
+  // Mondrian was experimental; normalize it before reading the narrowed Prisma enum.
+  await prisma.$executeRawUnsafe(`UPDATE "Settings" SET "pdfTemplate" = 'classic' WHERE "pdfTemplate" = 'mondrian'`);
 
   await prisma.$executeRawUnsafe(
     `UPDATE "Invoice" SET "status" = 'sent' WHERE "emailSentAt" IS NOT NULL AND "status" = 'issued'`

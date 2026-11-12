@@ -297,9 +297,9 @@ export function SettingsPage() {
               }
             >
               <option value="classic">Classic</option>
-              <option value="mondrian">Mondrian</option>
+              <option value="classic_rows">Classic Rows</option>
             </select>
-            <span className="field-hint">Zvolená šablona se použije pro všechny nově stahované PDF faktury.</span>
+            <span className="field-hint">Výchozí šablona pro faktury bez vlastní volby. Použije se při stahování i odesílání PDF. Classic Rows uvádí položky a jejich ceny samostatně.</span>
           </label>
         </div>
         <button type="submit" className="self-start px-2 py-1.5">

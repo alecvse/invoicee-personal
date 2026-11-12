@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { PrismaClient } from "@prisma/client";
 import request from "supertest";
+import PDFDocument from "pdfkit";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app.js";
 import { config } from "../config.js";
@@ -173,7 +174,7 @@ describe("API integration", () => {
     });
   });
 
-  it("returns settings with classic PDF template by default and allows switching to mondrian", async () => {
+  it("returns settings with classic PDF template by default and allows switching to Classic Rows", async () => {
     const initial = await request(app).get("/api/settings");
 
     expect(initial.status).toBe(200);
@@ -190,11 +191,78 @@ describe("API integration", () => {
       supplierPhone: null,
       defaultDueDays: 3,
       invoiceNumberFormat: "YYYY-NN",
-      pdfTemplate: "mondrian"
+      pdfTemplate: "classic_rows"
     });
 
     expect(updated.status).toBe(200);
-    expect(updated.body.pdfTemplate).toBe("mondrian");
+    expect(updated.body.pdfTemplate).toBe("classic_rows");
+  });
+
+  it("persists Classic Rows through the settings API and normalization", async () => {
+    const initial = await request(app).get("/api/settings");
+    const updated = await request(app).put("/api/settings").send({ ...initial.body, pdfTemplate: "classic_rows" });
+    expect(updated.status).toBe(200);
+    expect(updated.body.pdfTemplate).toBe("classic_rows");
+    await prisma.settings.update({ where: { id: "singleton" }, data: { defaultDueDays: 14 } });
+    expect((await ensureSettings()).pdfTemplate).toBe("classic_rows");
+    expect((await request(app).get("/api/settings")).body.pdfTemplate).toBe("classic_rows");
+  });
+
+  it("normalizes legacy Mondrian settings before reading the Prisma enum", async () => {
+    await prisma.$executeRawUnsafe(`UPDATE "Settings" SET "pdfTemplate" = 'mondrian' WHERE "id" = 'singleton'`);
+    await ensureDatabaseSchema();
+    expect((await ensureSettings()).pdfTemplate).toBe("classic");
+  });
+
+  it("stores invoice PDF choices, uses them over settings, and preserves them when duplicating", async () => {
+    const contact = await prisma.contact.create({ data: { name: "PDF klient", street: "Ulice 1", city: "Praha", zip: "11000", country: "Česká republika" } });
+    const account = await prisma.bankAccount.create({ data: { label: "CZK", currency: "CZK", accountType: "local", accountNumber: "27-6226430297", bankCode: "0100" } });
+    const payload = { contactId: contact.id, bankAccountId: account.id, issueDate: "2026-10-01", dueDate: "2026-10-04", items: [{ title: "Design", quantity: 2, unit: "hod", unitPrice: 1000 }] };
+    const created = await request(app).post("/api/invoices").send({ ...payload, pdfTemplate: "classic_rows" });
+    expect(created.status).toBe(201);
+    expect(created.body.pdfTemplate).toBe("classic_rows");
+    const id = created.body.id;
+    const text = vi.spyOn(PDFDocument.prototype, "text");
+    const pdf = await request(app).get(`/api/invoices/${id}/pdf?lang=cs`);
+    expect(pdf.status).toBe(200);
+    expect(text.mock.calls.map(call => call[0])).toContain("Cena za položku");
+    const duplicate = await request(app).post(`/api/invoices/${id}/duplicate`).send();
+    expect(duplicate.body.pdfTemplate).toBe("classic_rows");
+    const omitted = await request(app).put(`/api/invoices/${id}`).send(payload);
+    expect(omitted.body.pdfTemplate).toBe("classic_rows");
+
+    await prisma.settings.update({ where: { id: "singleton" }, data: { pdfTemplate: "classic_rows" } });
+    const updated = await request(app).put(`/api/invoices/${id}`).send({ ...payload, pdfTemplate: "classic" });
+    expect(updated.status).toBe(200);
+    expect(updated.body.pdfTemplate).toBe("classic");
+    text.mockClear();
+    expect((await request(app).get(`/api/invoices/${id}/pdf?lang=en`)).status).toBe(200);
+    expect(text.mock.calls.map(call => call[0])).not.toContain("Item price");
+    const reset = await request(app).put(`/api/invoices/${id}`).send({ ...payload, pdfTemplate: null });
+    expect(reset.body.pdfTemplate).toBeNull();
+    expect((await request(app).get(`/api/invoices/${id}`)).body.pdfTemplate).toBeNull();
+    text.mockClear();
+    expect((await request(app).get(`/api/invoices/${id}/pdf?lang=cs`)).status).toBe(200);
+    expect(text.mock.calls.map(call => call[0])).toContain("Cena za položku");
+    expect((await request(app).put(`/api/invoices/${id}`).send({ ...payload, pdfTemplate: "mondrian" })).status).toBe(400);
+    expect((await request(app).post("/api/invoices").send({ ...payload, pdfTemplate: "invalid" })).status).toBe(400);
+  });
+
+  it("upgrades old backups with the invoice PDF template column and retired settings", async () => {
+    const exported = await request(app).post("/api/backup/export").send({ includePdfs: false });
+    expect(exported.status).toBe(201);
+    const legacyClient = new PrismaClient({ datasources: { db: { url: `file:${path.join(testBackupDir, exported.body.id, "app.db")}` } } });
+    try {
+      await legacyClient.$executeRawUnsafe(`ALTER TABLE "Invoice" DROP COLUMN "pdfTemplate"`);
+      await legacyClient.$executeRawUnsafe(`UPDATE "Settings" SET "pdfTemplate" = 'mondrian'`);
+    } finally {
+      await legacyClient.$disconnect();
+    }
+    const restored = await request(app).post("/api/backup/import").send({ backupId: exported.body.id, includePdfs: false });
+    expect(restored.status).toBe(200);
+    expect(restored.body.safetyBackupId).toBeTruthy();
+    expect((await request(app).get("/api/invoices")).status).toBe(200);
+    expect((await request(app).get("/api/settings")).body.pdfTemplate).toBe("classic");
   });
 
   it("returns null template when contact has no invoices", async () => {
@@ -777,7 +845,6 @@ describe("API integration", () => {
         }
       });
       const issueDate = new Date();
-      issueDate.setUTCDate(issueDate.getUTCDate() + 1);
       const dueDate = new Date(issueDate);
       dueDate.setUTCDate(dueDate.getUTCDate() + 4);
       const created = await request(app).post("/api/invoices").send({
@@ -970,10 +1037,10 @@ describe("API integration", () => {
     });
   });
 
-  it("generates invoice PDF using the selected mondrian template", async () => {
+  it.each(["classic", "classic_rows"] as const)("generates English USD invoice PDF using the selected %s template", async template => {
     await prisma.settings.update({
       where: { id: "singleton" },
-      data: { pdfTemplate: "mondrian" }
+      data: { pdfTemplate: template }
     });
 
     const contact = await prisma.contact.create({
@@ -1018,10 +1085,10 @@ describe("API integration", () => {
     expect(pdfResponse.body.length).toBeGreaterThan(1000);
   });
 
-  it("generates Czech CZK PDF with mondrian template and QR-compatible data", async () => {
+  it.each(["classic", "classic_rows"] as const)("generates Czech CZK PDF with %s template and QR-compatible data", async template => {
     await prisma.settings.update({
       where: { id: "singleton" },
-      data: { pdfTemplate: "mondrian" }
+      data: { pdfTemplate: template }
     });
 
     const contact = await prisma.contact.create({

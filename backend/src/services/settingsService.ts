@@ -18,7 +18,7 @@ const defaultSettings = {
 export async function ensureSettings() {
   const existing = await prisma.settings.findUnique({ where: { id: "singleton" } });
   if (existing) {
-    const hasSupportedTemplate = existing.pdfTemplate === "classic" || existing.pdfTemplate === "mondrian";
+    const hasSupportedTemplate = ["classic", "classic_rows"].includes(existing.pdfTemplate);
     if (
       existing.defaultDueDays !== 3 ||
       existing.invoiceNumberFormat !== "YYYY-NN" ||
@@ -29,7 +29,7 @@ export async function ensureSettings() {
         data: {
           defaultDueDays: 3,
           invoiceNumberFormat: "YYYY-NN",
-          pdfTemplate: existing.pdfTemplate === "mondrian" ? "mondrian" : "classic"
+          pdfTemplate: hasSupportedTemplate ? existing.pdfTemplate : "classic"
         }
       });
     }

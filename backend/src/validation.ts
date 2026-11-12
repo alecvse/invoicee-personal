@@ -89,6 +89,7 @@ export const createInvoiceSchema = z.object({
   dueDate: z.string().min(1),
   currency: z.string().optional(),
   status: z.enum(["draft", "issued"]).optional(),
+  pdfTemplate: z.enum(["classic", "classic_rows"]).optional().nullable(),
   note: z.string().optional().nullable(),
   items: z.array(invoiceItemSchema).min(1)
 });
@@ -100,6 +101,7 @@ export const updateInvoiceSchema = z.object({
   dueDate: z.string().min(1),
   currency: z.string().optional(),
   status: z.enum(["draft", "issued"]).optional(),
+  pdfTemplate: z.enum(["classic", "classic_rows"]).optional().nullable(),
   note: z.string().optional().nullable(),
   items: z.array(invoiceItemSchema).min(1)
 });
@@ -115,7 +117,7 @@ export const settingsSchema = z.object({
   supplierPhone: z.string().optional().nullable(),
   defaultDueDays: z.number().int().positive(),
   invoiceNumberFormat: z.literal("YYYY-NN"),
-  pdfTemplate: z.enum(["classic", "mondrian"])
+  pdfTemplate: z.enum(["classic", "classic_rows"])
 });
 
 export const sendEmailSchema = z.object({

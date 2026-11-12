@@ -25,28 +25,9 @@ export const classicColors = {
   slate960: "#020617"
 } as const;
 
-export const mondrianColors = {
-  white: "#FFFFFF",
-  ink: "#020617",
-  blue: "#1d4ed8",
-  red: "#dc2626",
-  yellow: "#eab308",
-  grid: "#111827",
-  slate: "#334155",
-  lightSlate: "#64748b"
-} as const;
-
 export const classicPage = {
   left: 30,
   right: 565
-} as const;
-
-export const mondrianPage = {
-  left: 34,
-  right: 561,
-  top: 34,
-  bottom: 808,
-  width: 527
 } as const;
 
 export const sectionSpacing = 32;

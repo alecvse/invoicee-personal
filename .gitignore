@@ -6,15 +6,17 @@ backend/dist
 frontend/dist
 desktop/dist
 desktop/release
-backend/.env
+.env
+.env.*
+!.env.example
 # Local runtime data: database, generated PDFs, backups, Gmail token and imports.
-data/
+/data/
+/backend/data/
 .DS_Store
 .playwright-cli/
 playwright-report/
 test-results/
 *.tsbuildinfo
-backend/data/*.db
 backend/prisma/dev.db
 data/backups/
 data/legacy/

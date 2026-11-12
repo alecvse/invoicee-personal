@@ -1,13 +1,15 @@
 {
   "name": "my-invoice-app",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.2.4",
   "workspaces": [
     "backend",
     "frontend"
   ],
   "overrides": {
-    "path-to-regexp": "0.1.13"
+    "path-to-regexp": "0.1.13",
+    "deepmerge-ts": "^8.0.0",
+    "vite": "^6.4.6"
   },
   "scripts": {
     "predev": "npm run db:generate",

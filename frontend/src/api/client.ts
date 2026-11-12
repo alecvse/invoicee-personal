@@ -15,6 +15,7 @@ import type {
   InvoiceCzkConversion,
   InvoiceItem,
   InvoiceStatus,
+  PdfTemplate,
   SendEmailResponse,
   Settings
 } from "./types";
@@ -188,6 +189,7 @@ export const api = {
         currency?: string;
         status?: "draft" | "issued";
         note?: string;
+        pdfTemplate?: PdfTemplate | null;
         items: InvoiceItem[];
       }) => request<Invoice>("/invoices", { method: "POST", body: JSON.stringify(payload) }),
     update: (
@@ -200,6 +202,7 @@ export const api = {
         currency?: string;
         status?: "draft" | "issued";
         note?: string;
+        pdfTemplate?: PdfTemplate | null;
         items: InvoiceItem[];
       }
     ) => request<Invoice>(`/invoices/${id}`, { method: "PUT", body: JSON.stringify(payload) }),

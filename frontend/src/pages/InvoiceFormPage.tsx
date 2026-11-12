@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
-import type { BankAccount, Contact, ContactInvoiceTemplate, InvoiceItem, InvoiceStatus, LastInvoiceTemplate } from "../api/types";
+import type { BankAccount, Contact, ContactInvoiceTemplate, InvoiceItem, InvoiceStatus, LastInvoiceTemplate, PdfTemplate } from "../api/types";
 
 type InvoiceFormState = {
   contactId: string;
@@ -10,6 +10,7 @@ type InvoiceFormState = {
   dueDate: string;
   currency: string;
   note: string;
+  pdfTemplate: PdfTemplate | null;
   items: InvoiceItem[];
 };
 
@@ -63,6 +64,7 @@ export function InvoiceFormPage() {
   const isDuplicatedDraft = isEdit && searchParams.get("duplicated") === "1";
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
+  const [defaultPdfTemplate, setDefaultPdfTemplate] = useState<PdfTemplate>("classic");
   const [settingsDueDays, setSettingsDueDays] = useState<number>(14);
   const [quickContactOpen, setQuickContactOpen] = useState(false);
   const [quickContact, setQuickContact] = useState(emptyContact);
@@ -80,6 +82,7 @@ export function InvoiceFormPage() {
     dueDate: formatDate(addDays(new Date(), 14)),
     currency: "CZK",
     note: "",
+    pdfTemplate: null,
     items: [emptyItem()]
   });
 
@@ -89,6 +92,7 @@ export function InvoiceFormPage() {
         setContacts(contactsResult);
         setAccounts(accountsResult);
         setSettingsDueDays(settings.defaultDueDays);
+        setDefaultPdfTemplate(settings.pdfTemplate);
 
         if (!isEdit && preselectedContactId) {
           setForm((prev) => ({ ...prev, contactId: prev.contactId || preselectedContactId }));
@@ -130,6 +134,7 @@ export function InvoiceFormPage() {
           dueDate: invoice.dueDate,
           currency: invoice.currency,
           note: invoice.note ?? "",
+          pdfTemplate: invoice.pdfTemplate ?? null,
           items: invoice.items.map((item) => ({
             title: item.title,
             quantity: item.quantity,
@@ -475,6 +480,19 @@ export function InvoiceFormPage() {
               disabled={isDuplicatedDraft}
               required
             />
+          </label>
+          <label>
+            PDF šablona
+            <select
+              value={form.pdfTemplate ?? ""}
+              onChange={(event) => setForm((prev) => ({ ...prev, pdfTemplate: (event.target.value || null) as PdfTemplate | null }))}
+              disabled={saving}
+            >
+              <option value="">Výchozí z Nastavení ({defaultPdfTemplate === "classic_rows" ? "Classic Rows" : "Classic"})</option>
+              <option value="classic">Classic</option>
+              <option value="classic_rows">Classic Rows</option>
+            </select>
+            <span className="field-hint">Volba platí pro PDF této faktury při stažení i odeslání.</span>
           </label>
         </div>
 

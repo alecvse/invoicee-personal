@@ -194,6 +194,7 @@ test("navigates through key pages", async ({ page }) => {
   await expect(page.getByText("Mediánová mzda v ČR")).toBeVisible();
   await expect(page.getByText("Průměrná hrubá mzda v ČR")).toBeVisible();
   await expect(page.locator(".market-sparkline")).toHaveCount(4);
+  await expect(page.locator(".market-stat-card").filter({ hasText: "Mediánová mzda v ČR" })).toContainText("ČSÚ, za 4. čtvrtletí 2025");
 
   await page.getByRole("link", { name: "Faktury" }).click();
   await expect(page.getByRole("heading", { name: "Faktury", exact: true })).toBeVisible();
@@ -204,3 +205,57 @@ test("navigates through key pages", async ({ page }) => {
   await page.getByRole("link", { name: "Nastavení" }).click();
   await expect(page.getByRole("heading", { name: "Nastavení", exact: true })).toBeVisible();
 });
+
+test("shows the last known median when the latest CZSO article has no median", async ({ page }) => {
+  await page.route("http://localhost:3001/api/stats/current-market", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ...currentMarketStats,
+        statistics: {
+          ...currentMarketStats.statistics,
+          medianWageCzk: null,
+          medianWagePeriod: null,
+          averageWageCzk: 51966,
+          averageWagePeriod: "2. čtvrtletí 2026"
+        }
+      })
+    });
+  });
+
+  await page.goto("/");
+
+  const medianCard = page.locator(".market-stat-card").filter({ hasText: "Mediánová mzda v ČR" });
+  await expect(medianCard).toContainText(/45\s?523,00\s?Kč/);
+  await expect(medianCard).toContainText("ČSÚ, za 4. čtvrtletí 2025");
+});
+
+for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+  test(`selects and retains Classic Rows at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    const errors: string[] = [];
+    page.on("pageerror", error => errors.push(error.message));
+    let settings = {
+      id: "singleton", supplierName: "Invoicee", supplierStreet: "Ulice 1", supplierCity: "Praha", supplierZip: "11000", supplierCountry: "Česká republika", supplierICO: null, supplierEmail: null, supplierPhone: null, defaultDueDays: 3, invoiceNumberFormat: "YYYY-NN", pdfTemplate: "classic"
+    };
+    await page.route("http://localhost:3001/api/settings", async route => {
+      if (route.request().method() === "PUT") settings = { ...settings, ...route.request().postDataJSON() };
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(settings) });
+    });
+    await page.goto("/settings");
+    await expect(page.getByRole("heading", { name: "Nastavení", exact: true })).toBeVisible();
+    const select = page.getByLabel("PDF šablona");
+    await select.selectOption("classic_rows");
+    await page.getByRole("button", { name: "Uložit údaje dodavatele" }).click();
+    await expect.poll(() => settings.pdfTemplate).toBe("classic_rows");
+    await page.reload();
+    await expect(select).toHaveValue("classic_rows");
+    await select.focus();
+    await expect(select).toBeFocused();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    expect(errors).toEqual([]);
+    await select.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `/tmp/invoicee-classic-rows/settings-${viewport.width}.png` });
+  });
+}

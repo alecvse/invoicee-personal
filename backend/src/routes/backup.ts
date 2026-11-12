@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { Router } from "express";
 import { config } from "../config.js";
 import { prisma } from "../prisma.js";
+import { ensureDatabaseSchema } from "../services/databaseInit.js";
 import { asyncHandler, fail } from "../utils/http.js";
 
 export const backupRouter = Router();
@@ -269,6 +270,8 @@ backupRouter.post(
     } finally {
       await prisma.$connect();
     }
+
+    await ensureDatabaseSchema();
 
     res.json({
       ok: true,

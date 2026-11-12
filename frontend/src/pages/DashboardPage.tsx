@@ -134,6 +134,12 @@ export function DashboardPage() {
     [stats]
   );
 
+  const historicalMedianWage = marketStats?.history.statistics.medianWageCzk.at(-1);
+  const medianWageCzk = marketStats?.statistics.medianWageCzk ?? historicalMedianWage?.valueCzk;
+  const medianWagePeriod = marketStats?.statistics.medianWageCzk == null
+    ? historicalMedianWage?.sourcePeriod
+    : marketStats.statistics.medianWagePeriod;
+
   const marketCards = useMemo(
     () => [
       {
@@ -166,13 +172,8 @@ export function DashboardPage() {
       },
       {
         label: "Mediánová mzda v ČR",
-        value:
-          typeof marketStats?.statistics.medianWageCzk === "number"
-            ? formatMoney(marketStats.statistics.medianWageCzk, "CZK")
-            : "-",
-        subValue: marketStats?.statistics.medianWagePeriod
-          ? `ČSÚ, ${marketStats.statistics.medianWagePeriod}`
-          : "Dočasně nedostupné",
+        value: typeof medianWageCzk === "number" ? formatMoney(medianWageCzk, "CZK") : "-",
+        subValue: medianWagePeriod ? `ČSÚ, za ${medianWagePeriod}` : "Dočasně nedostupné",
         history: marketStats?.history.statistics.medianWageCzk.map((point) => ({
           label: formatQuarterLabel(point.sourcePeriod),
           value: point.valueCzk,
@@ -201,7 +202,7 @@ export function DashboardPage() {
         chartVariant: "bar" as const
       }
     ],
-    [marketStats]
+    [marketStats, medianWageCzk, medianWagePeriod]
   );
 
   const monthlyChart = useMemo(() => {
